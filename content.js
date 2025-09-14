@@ -1,32 +1,39 @@
 (() => {
-  // משתנים גלובליים בתוך ה-IIFE
   let historyElement, menuHeaderButton, markerMenuElement;
   let markerSettings;
 
-  // ===== פונקציות עזר כלליות =====
+  // ===== Helper Functions =====
+
+  // Save marker settings to localStorage
   function saveMarkerSettings() {
     localStorage.setItem('navMarkerSettings', JSON.stringify(markerSettings));
   }
 
+  // Apply colors to navigation links based on markers
   function applyColorsToNavLinks() {
-    document.querySelectorAll('nav a').forEach(link => {
+    const links = document.querySelectorAll('nav a');
+    links.forEach(link => {
       const linkText = link.textContent.trim();
       link.style.backgroundColor = '';
       link.style.color = '';
 
       if (markerSettings.enableColors) {
         markerSettings.markers.forEach(marker => {
+          // Check if link starts or ends with the marker symbol
           if (linkText.startsWith(marker.symbol) || linkText.endsWith(marker.symbol)) {
             link.style.backgroundColor = marker.bgColor || '';
             link.style.color = marker.color || '';
+            console.log('Applying color', marker.symbol, linkText, marker.bgColor, marker.color);
           }
         });
       }
 
+      // Bold active link
       link.style.fontWeight = link.hasAttribute('data-active') ? 'bold' : '';
     });
   }
 
+  // Update toggle switch UI
   function updateToggleSwitchAppearance(enableColorsCheckbox, sliderBackground, sliderHandle) {
     if (enableColorsCheckbox.checked) {
       sliderBackground.style.backgroundColor = '#4CAF50';
@@ -37,12 +44,14 @@
     }
   }
 
+  // Render the list of markers in the menu
   function renderMarkerList() {
     const markerListContainer = document.getElementById('markerList');
+    if (!markerListContainer) return;
     markerListContainer.innerHTML = '';
 
     if (markerSettings.markers.length === 0) {
-      markerListContainer.innerHTML = '<em>אין סימנים מוגדרים.</em>';
+      markerListContainer.innerHTML = '<em>No markers defined.</em>';
     }
 
     markerSettings.markers.forEach((marker, index) => {
@@ -79,6 +88,7 @@
     });
   }
 
+  // Show the marker configuration menu
   function showMarkerMenu() {
     menuHeaderButton.style.color = '#fff';
     markerMenuElement.style.maxHeight = '800px';
@@ -86,6 +96,7 @@
     document.addEventListener('click', handleOutsideClick);
   }
 
+  // Hide the menu
   function hideMarkerMenu() {
     menuHeaderButton.style.color = '#000';
     markerMenuElement.style.maxHeight = '24px';
@@ -93,32 +104,35 @@
     document.removeEventListener('click', handleOutsideClick);
   }
 
+  // Close menu when clicking outside
   function handleOutsideClick(event) {
     if (!markerMenuElement.contains(event.target) && !menuHeaderButton.contains(event.target)) {
       hideMarkerMenu();
     }
   }
 
-  // ===== פונקציה ראשית לפתיחת התפריט =====
+  // Toggle menu visibility and setup menu if not yet created
   function toggleMarkerMenu() {
     if (markerMenuElement) {
       if (markerMenuElement.style.display === 'block' && markerMenuElement.style.maxHeight !== '0px') {
-        //hideMarkerMenu();
+        hideMarkerMenu();
       } else {
         showMarkerMenu();
       }
       return;
     }
 
+    // Apply colors immediately
     applyColorsToNavLinks();
 
     const navElement = document.querySelector('nav');
     if (navElement) {
+      // Observe changes in nav to reapply colors
       new MutationObserver(applyColorsToNavLinks)
         .observe(navElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-active'] });
     }
 
-    // יצירת התפריט
+    // Create the menu HTML
     markerMenuElement = document.createElement('div');
     markerMenuElement.id = 'markerConfigMenu';
     markerMenuElement.style.cssText = `
@@ -148,19 +162,19 @@
           </label>
         </div>
         <div style="cursor:default;margin-bottom:8px;font-size:14px;color:#333;text-align:right;direction:rtl;">
-          <hr>מקם סימנים בתחילת <br>או בסוף שם של שיחה,<br> והגדר צבעים:
+          <hr>Place symbols at the start or end of session names and set colors:
         </div>
         <div id="markerList" style="width:170px;"></div>
         <hr>
         <div style="margin-bottom:5px;">
-          <input id="newSymbol" placeholder="סימן" style="width:60px;height:30px;">
+          <input id="newSymbol" placeholder="Symbol" style="width:60px;height:30px;">
           <div style="float: right; margin-top: 3px;">
-		    <input id="newBg" type="color" value="#ffff00" title="רקע">
-            <input id="newColor" type="color" value="#000000" title="צבע טקסט">
-		  </div>
+            <input id="newBg" type="color" value="#ffff00" title="Background">
+            <input id="newColor" type="color" value="#000000" title="Text Color">
+          </div>
         </div>
-        <button id="addMarker" style="margin-right:5px;">➕ הוסף</button>
-        <button id="resetMarkers">♻️ איפוס</button>
+        <button id="addMarker" style="margin-right:5px;">➕ Add</button>
+        <button id="resetMarkers">♻️ Reset</button>
       </div>
     `;
 
@@ -194,7 +208,7 @@
     };
 
     document.getElementById('resetMarkers').onclick = () => {
-      if (confirm('לאפס הכל?')) {
+      if (confirm('Reset all markers?')) {
         localStorage.removeItem('navMarkerSettings');
         markerSettings = { markers: [], enableColors: true };
         renderMarkerList();
@@ -208,43 +222,54 @@
     showMarkerMenu();
   }
 
-  // ===== הפעלה ראשונית =====
+  // ===== Initialization =====
   function init() {
-    historyElement = document.getElementById('history');
-    if (!historyElement) {
-      console.log('לא נמצא אלמנט עם id="history"');
-      return;
-    }
+    // Wait for #history element to appear
+    const waitForHistory = setInterval(() => {
+      historyElement = document.getElementById('history');
+      if (historyElement) {
+        clearInterval(waitForHistory);
 
-    // טעינת הגדרות
-    markerSettings = JSON.parse(localStorage.getItem('navMarkerSettings')) || {
-      markers: [{ symbol: '📌', bgColor: '#fff8b3', color: '' }],
-      enableColors: true
-    };
+        // Load settings or default
+        markerSettings = JSON.parse(localStorage.getItem('navMarkerSettings')) || {
+          markers: [{ symbol: '📌', bgColor: '#fff8b3', color: '#000' }],
+          enableColors: true
+        };
 
-    // הוספת עיצוב
-    const injectedStyle = document.createElement('style');
-    injectedStyle.textContent = `
-      #menuContent { padding:10px; background:rgba(255,255,255,0.95); }
-      #colorsMenuHeader {
-        color: black; cursor: pointer; background: #fff; padding: 6px 12px;
-        border: 1px solid #ccc; display: inline-block; position: relative;
-        border-radius: 5px; margin-left: 7px; margin-top: 15px; font-size: 14px;
+        // Inject styles for menu
+        const injectedStyle = document.createElement('style');
+        injectedStyle.textContent = `
+          #menuContent { padding:10px; background:rgba(255,255,255,0.95); }
+          #colorsMenuHeader {
+            color: black; cursor: pointer; background: #fff; padding: 6px 12px;
+            border: 1px solid #ccc; display: inline-block; position: relative;
+            border-radius: 5px; margin-left: 7px; margin-top: 15px; font-size: 14px;
+          }
+        `;
+        document.head.appendChild(injectedStyle);
+
+        // Create menu header button
+        menuHeaderButton = document.createElement('div');
+        menuHeaderButton.id = 'colorsMenuHeader';
+        menuHeaderButton.textContent = '☰ Session Colors';
+        historyElement.parentElement.insertBefore(menuHeaderButton, historyElement);
+
+        menuHeaderButton.addEventListener('click', event => {
+          event.stopPropagation();
+          toggleMarkerMenu();
+        });
+
+        // Apply colors immediately
+        applyColorsToNavLinks();
+
+        // Observe nav changes to reapply colors
+        const navElement = document.querySelector('nav');
+        if (navElement) {
+          new MutationObserver(applyColorsToNavLinks)
+            .observe(navElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-active'] });
+        }
       }
-    `;
-    document.head.appendChild(injectedStyle);
-
-    // יצירת כפתור תפריט
-    menuHeaderButton = document.createElement('div');
-    menuHeaderButton.id = 'colorsMenuHeader';
-    menuHeaderButton.textContent = '☰ צביעת סשנים';
-    historyElement.parentElement.insertBefore(menuHeaderButton, historyElement);
-
-    menuHeaderButton.addEventListener('click', event => {
-      event.stopPropagation();
-      toggleMarkerMenu();
-    });
-	applyColorsToNavLinks();
+    }, 100);
   }
 
   init();
